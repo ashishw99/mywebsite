@@ -1,6 +1,7 @@
 # terraform
 terraform poc
 
+
 **You have to launch an application by creating the following infrastructure using Terraform ( InfrastructureAsACode )**
 
   1.First create a key, then create a security group which allows port ssh 22 and http 80
