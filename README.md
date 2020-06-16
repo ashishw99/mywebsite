@@ -1,5 +1,7 @@
-# terraform
-terraform poc
+# Terraform
+Terraform poc
+
+
 
 
 **You have to launch an application by creating the following infrastructure using Terraform ( InfrastructureAsACode )**
@@ -17,3 +19,9 @@ terraform poc
   6. create cloudfront distribution to server website content hosted on s3 bucket
 
   7.Update the Cloud front URL into the code that was downloaded into the above folder which is accessible publically
+
+
+
+
+
+**#LinuxWorld #VimalDaga #InfrastructureAsACode #Terraform #Github #AWS**
