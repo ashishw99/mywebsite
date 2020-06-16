@@ -4,20 +4,22 @@ provider "aws" {
  
  }
 
-resource "tls_private_key" "mykey" {
+
+resource "tls_private_key" "opensshkey" {
   algorithm = "RSA"
 }
+
+resource "aws_key_pair" "mykey"{
+  key_name = "mykey"
+  public_key = tls_private_key.opensshkey.public_key_openssh
+}
+
 output "key_ssh" {
-  value = tls_private_key.mykey.public_key_openssh
+  value = tls_private_key.opensshkey.public_key_openssh
 }
 
 output "key_pem" {
-  value = tls_private_key.mykey.public_key_pem
-}
-
-resource "aws_key_pair" "opensshkey"{
-  key_name = "mykey"
-  public_key = tls_private_key.mykey.public_key_openssh
+  value = tls_private_key.opensshkey.public_key_pem
 }
 
 resource "aws_security_group" "mysg" {
@@ -33,7 +35,7 @@ resource "aws_security_group" "mysg" {
 		cidr_blocks = ["0.0.0.0/0"]
 	}
 
-	ingress { // Check
+		ingress { // Check
 		description = "ssh on port 22."
 		from_port = 22
 		to_port = 22
@@ -52,19 +54,20 @@ resource "aws_security_group" "mysg" {
 
 resource "aws_instance" "myec2instance" {
 depends_on = [
-  aws_security_group.mysg
+  aws_security_group.mysg,
+  aws_key_pair.mykey
 ]
 
   ami           = "ami-0447a12f28fddb066"
   instance_type = "t2.micro"
   key_name = aws_key_pair.mykey.key_name
-  security_groups = [ aws_security_group.mysg.name]
+  security_groups = [ aws_security_group.mysg.name ]
 
 
   connection {
     type     = "ssh"
     user     = "ec2-user"
-    private_key = tls_private_key.mykey.private_key_pem
+    private_key = tls_private_key.opensshkey.private_key_pem
     host     = aws_instance.myec2instance.public_ip
   }
 
@@ -72,7 +75,7 @@ depends_on = [
     inline = [
       "sudo yum install httpd  git -y",
       "sudo systemctl restart httpd",
-      "sudo systemctl enable httpd",
+      "sudo systemctl enable httpd"
     ]
   }
 
@@ -87,9 +90,9 @@ output "mypublic_ip" {
 
 
 resource "aws_ebs_volume" "myebsvolume" {
-  availibility_zone = aws_instance.myec2instance.availability_zone
+  availability_zone = aws_instance.myec2instance.availability_zone
   size = 1
-  tags {
+  tags = {
     Name = "myebsvolume"
   }
 }
@@ -112,7 +115,7 @@ depends_on = [
   connection {
     type = "ssh"
 	user = "ec2-user"
-	private_key = tls_private_key.my.private_key_pem
+	private_key = tls_private_key.opensshkey.private_key_pem
 	host = aws_instance.myec2instance.public_ip
   }
   
@@ -131,7 +134,7 @@ depends_on = [
 
 
 resource "aws_s3_bucket" "mywebsitebucket" {
-  bucket_name = "mywebsitebucket_ashishjune2020"
+  bucket = "mywebsitebucket_ashishjune2020"
   acl = "public-read"
   tags = {
     Name =  "mywebsitebucket"
@@ -140,9 +143,7 @@ resource "aws_s3_bucket" "mywebsitebucket" {
 
 resource "null_resource" "download-s3image" { 
   provisioner "local-exec" {
-    inline = [
-	  "git clone https://github.com/ashishw99/s3image.git"
-	]
+    command = "git clone https://github.com/ashishw99/mywebsite.git"
   }
 }
 
@@ -154,7 +155,6 @@ depends_on = [
   bucket = "mywebsitebucket_ashishjune2020"
   key = "s3image.jpg"
   source = "s3image.jpg"
-  etag = filemd5("s3image.jpg")
   acl = "public-read-write"
 }
 
@@ -164,7 +164,7 @@ locals {
 
 resource "aws_cloudfront_distribution" "cloudfront-url" {
 depends_on = [
-aws_s3_bucket_object.image-jpg,
+aws_s3_bucket_object.myimage,
 ]
 	enabled = true
 	is_ipv6_enabled = true
@@ -207,7 +207,7 @@ value     = aws_cloudfront_distribution.cloudfront-url.domain_name
 }
 
 
-resource "remote-exec" "update-index-with-cloudfront-url" {
+resource "null_resource" "update-index-with-cloudfront-url" {
 depends_on = [
   aws_cloudfront_distribution.cloudfront-url,
   aws_ebs_volume.myebsvolume,
@@ -217,12 +217,15 @@ depends_on = [
   connection {
     type = "ssh"
 	user = "ec2-user"
-	private_key = tls_private_key.my.private_key_pem
+	private_key = tls_private_key.opensshkey.private_key_pem
 	host = aws_instance.myec2instance.public_ip
   }
   
   provisioner "remote-exec" {
-    command = "sudo echo Hurray my website is live > test.html "
+    inline  = [ 	"sudo su << EOF",
+            "echo \"<img src='http://${aws_cloudfront_distribution.cloudfront-url.domain_name}/${aws_s3_bucket_object.myimage.key}'>\" >> /var/www/html/test.html",
+            "EOF"
+			]
   
   }
 
@@ -235,10 +238,8 @@ depends_on = [
   aws_instance.myec2instance
 ]
 	provisioner "local-exec" {
-	  resource "null_resource" "remote2"  {  
 	    command = "echo  ${aws_instance.myec2instance.public_ip} > mywebsite_ipaddress.txt"
   	}
-}
 }
 
 resource "null_resource" "launch_website_locally"  {
@@ -249,6 +250,6 @@ depends_on = [
   ]
 
 	provisioner "local-exec" {
-	    command = "chrome  ${aws_instance.mytask1instance.public_ip}/test.html"
+	    command = "chrome  ${aws_instance.myec2instance.public_ip}/test.html"
   	}
 }
